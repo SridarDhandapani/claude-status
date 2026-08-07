@@ -1,3 +1,5 @@
+import AppKit
+import Carbon.HIToolbox
 import SwiftUI
 
 /// The popover content showing all active Claude Code sessions.
@@ -15,6 +17,8 @@ struct SessionListView: View {
     private var iconStyle: SessionIconStyle = .emoji
 
     @State private var isRefreshing = false
+    @State private var selectedSessionID: String?
+    @State private var keyMonitor: Any?
 
     private let menuFont = Font.system(size: 13)
 
@@ -52,6 +56,66 @@ struct SessionListView: View {
         }
         .frame(width: 300)
         .background(.background)
+        .onAppear {
+            selectedSessionID = nil
+            installKeyMonitor()
+        }
+        .onDisappear(perform: removeKeyMonitor)
+    }
+
+    // MARK: - Keyboard Navigation
+
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handleKeyDown(event)
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+        }
+        keyMonitor = nil
+    }
+
+    private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
+        guard !sortedSessions.isEmpty else { return event }
+        switch Int(event.keyCode) {
+        case kVK_DownArrow:
+            moveSelection(by: 1)
+            return nil
+        case kVK_UpArrow:
+            moveSelection(by: -1)
+            return nil
+        case kVK_Return, kVK_ANSI_KeypadEnter:
+            guard let selected = sortedSessions.first(where: { $0.id == selectedSessionID }) else {
+                return event
+            }
+            onSessionTap?(selected)
+            return nil
+        default:
+            return event
+        }
+    }
+
+    private func moveSelection(by delta: Int) {
+        let list = sortedSessions
+        let current = list.firstIndex { $0.id == selectedSessionID }
+        guard let next = Self.nextSelectionIndex(current: current, delta: delta, count: list.count) else {
+            return
+        }
+        selectedSessionID = list[next].id
+    }
+
+    /// Pure index math for arrow-key navigation: wraps at both ends; with no
+    /// current selection, down selects the first row and up selects the last.
+    static func nextSelectionIndex(current: Int?, delta: Int, count: Int) -> Int? {
+        guard count > 0 else { return nil }
+        guard let current, (0..<count).contains(current) else {
+            return delta >= 0 ? 0 : count - 1
+        }
+        return (current + delta % count + count) % count
     }
 
     // MARK: - Subviews
@@ -109,22 +173,31 @@ struct SessionListView: View {
     }
 
     private var sessionList: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                ForEach(sortedSessions) { session in
-                    Button {
-                        onSessionTap?(session)
-                    } label: {
-                        SessionRowView(
-                            session: session,
-                            iconStyle: iconStyle,
-                            showProfileBadge: showProfileBadges
-                        )
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(sortedSessions) { session in
+                        Button {
+                            onSessionTap?(session)
+                        } label: {
+                            SessionRowView(
+                                session: session,
+                                iconStyle: iconStyle,
+                                showProfileBadge: showProfileBadges,
+                                isSelected: session.id == selectedSessionID
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .id(session.id)
                     }
-                    .buttonStyle(.plain)
+                }
+                .padding(.vertical, 4)
+            }
+            .onChange(of: selectedSessionID) { _, newValue in
+                if let newValue {
+                    proxy.scrollTo(newValue)
                 }
             }
-            .padding(.vertical, 4)
         }
         .frame(maxHeight: maxSessionListHeight)
         .fixedSize(horizontal: false, vertical: true)

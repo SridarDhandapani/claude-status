@@ -19,6 +19,8 @@ struct SessionRowView: View {
     var iconStyle: SessionIconStyle = .emoji
     /// Show which profile the session belongs to (multi-profile setups).
     var showProfileBadge: Bool = false
+    /// Highlighted via keyboard navigation.
+    var isSelected: Bool = false
 
     @State private var isHovered = false
 
@@ -79,7 +81,7 @@ struct SessionRowView: View {
         .padding(.horizontal, 14)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(isHovered ? Color.primary.opacity(0.08) : Color.clear)
+                .fill(highlightColor)
                 .padding(.horizontal, 6)
         )
         .contentShape(Rectangle())
@@ -97,6 +99,16 @@ struct SessionRowView: View {
             Circle()
                 .fill(dotColor)
                 .frame(width: 8, height: 8)
+        }
+    }
+
+    private var highlightColor: Color {
+        if isSelected {
+            Color.accentColor.opacity(0.25)
+        } else if isHovered {
+            Color.primary.opacity(0.08)
+        } else {
+            Color.clear
         }
     }
 

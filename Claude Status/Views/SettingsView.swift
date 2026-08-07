@@ -9,10 +9,13 @@ struct SettingsView: View {
     var updater: SPUUpdater?
     var onInstallPlugin: (ClaudeProfile) -> Void
     var onUninstallPlugin: (ClaudeProfile) -> Void
+    var onHotkeyChange: (() -> Void)? = nil
+    var onHotkeyRecordingChanged: ((Bool) -> Void)? = nil
 
     @AppStorage("iconStyle", store: AppGroup.defaults)
     private var iconStyle: SessionIconStyle = .emoji
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var hotkey = GlobalHotkey.stored
 
     var body: some View {
         Form {
@@ -30,6 +33,31 @@ struct SettingsView: View {
                     .onChange(of: launchAtLogin) { _, newValue in
                         toggleLaunchAtLogin(newValue)
                     }
+            }
+
+            Section {
+                HStack {
+                    Text("Open Session List")
+                    Spacer()
+                    HotkeyRecorderView(
+                        hotkey: $hotkey,
+                        onRecordingChanged: onHotkeyRecordingChanged
+                    )
+                    Button("Clear") {
+                        hotkey = nil
+                    }
+                    .disabled(hotkey == nil)
+                }
+                .onChange(of: hotkey) { _, newValue in
+                    GlobalHotkey.stored = newValue
+                    onHotkeyChange?()
+                }
+            } header: {
+                Text("Keyboard Shortcut")
+            } footer: {
+                Text("Opens the session list from anywhere. Use \u{2191}\u{2193} to select a session and Return to focus it. No shortcut is set by default.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if let updater {
