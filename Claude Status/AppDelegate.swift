@@ -345,13 +345,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Re-reads the stored hotkey configuration and (re)registers or
-    /// unregisters the global shortcut accordingly.
-    private func applyHotkeySettings() {
+    /// unregisters the global shortcut accordingly. Returns false when a
+    /// stored shortcut could not be registered with the system.
+    @discardableResult
+    private func applyHotkeySettings() -> Bool {
         if let hotkey = GlobalHotkey.stored {
-            hotkeyManager.register(hotkey)
-        } else {
-            hotkeyManager.unregister()
+            return hotkeyManager.register(hotkey)
         }
+        hotkeyManager.unregister()
+        return true
     }
 
     // MARK: - Plugin Installation
@@ -523,7 +525,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.showSettings()
             },
             onHotkeyChange: { [weak self] in
-                self?.applyHotkeySettings()
+                self?.applyHotkeySettings() ?? false
             },
             onHotkeyRecordingChanged: { [weak self] recording in
                 // Suspend the shortcut while recording so the current

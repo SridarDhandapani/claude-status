@@ -364,11 +364,13 @@ struct KeyboardNavigationTests {
 struct GlobalHotkeyTests {
 
     @Test func displayStringOrdersModifiers() {
+        // Space has a fixed label, so this doesn't depend on the active
+        // keyboard layout the way letter keys do
         let hotkey = GlobalHotkey(
-            keyCode: UInt32(kVK_ANSI_S),
+            keyCode: UInt32(kVK_Space),
             carbonModifiers: UInt32(controlKey | optionKey | cmdKey)
         )
-        #expect(hotkey.displayString == "\u{2303}\u{2325}\u{2318}S")
+        #expect(hotkey.displayString == "\u{2303}\u{2325}\u{2318}Space")
     }
 
     @Test func modifierConversion() {

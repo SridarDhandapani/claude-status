@@ -9,13 +9,15 @@ struct SettingsView: View {
     var updater: SPUUpdater?
     var onInstallPlugin: (ClaudeProfile) -> Void
     var onUninstallPlugin: (ClaudeProfile) -> Void
-    var onHotkeyChange: (() -> Void)? = nil
+    /// Applies the stored hotkey; returns false when registration failed.
+    var onHotkeyChange: (() -> Bool)? = nil
     var onHotkeyRecordingChanged: ((Bool) -> Void)? = nil
 
     @AppStorage("iconStyle", store: AppGroup.defaults)
     private var iconStyle: SessionIconStyle = .emoji
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var hotkey = GlobalHotkey.stored
+    @State private var hotkeyRegistrationFailed = false
 
     var body: some View {
         Form {
@@ -50,7 +52,21 @@ struct SettingsView: View {
                 }
                 .onChange(of: hotkey) { _, newValue in
                     GlobalHotkey.stored = newValue
-                    onHotkeyChange?()
+                    if onHotkeyChange?() == false {
+                        // Leave nothing half-configured: the shortcut isn't
+                        // registered, so don't keep it stored or displayed
+                        hotkeyRegistrationFailed = true
+                        GlobalHotkey.stored = nil
+                        hotkey = nil
+                    } else if newValue != nil {
+                        hotkeyRegistrationFailed = false
+                    }
+                }
+
+                if hotkeyRegistrationFailed {
+                    Text("That shortcut couldn't be registered — it may be reserved by the system. Try a different combination.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
             } header: {
                 Text("Keyboard Shortcut")

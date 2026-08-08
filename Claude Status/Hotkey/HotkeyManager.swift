@@ -11,10 +11,13 @@ final class HotkeyManager {
     private var eventHandlerRef: EventHandlerRef?
 
     /// Registers `hotkey` as the active global shortcut, replacing any
-    /// previous registration.
-    func register(_ hotkey: GlobalHotkey) {
+    /// previous registration. Returns false when the system rejects the
+    /// registration (e.g. the combination is reserved), leaving no shortcut
+    /// active.
+    @discardableResult
+    func register(_ hotkey: GlobalHotkey) -> Bool {
         unregister()
-        installHandlerIfNeeded()
+        guard installHandlerIfNeeded() else { return false }
 
         var ref: EventHotKeyRef?
         let hotKeyID = EventHotKeyID(signature: OSType(0x4353_5453) /* "CSTS" */, id: 1)
@@ -26,12 +29,13 @@ final class HotkeyManager {
             0,
             &ref
         )
-        if status == noErr {
-            hotKeyRef = ref
-        } else {
+        guard status == noErr, ref != nil else {
             NSLog("Claude Status: failed to register global hotkey %@ (OSStatus %d)",
                   hotkey.displayString, status)
+            return false
         }
+        hotKeyRef = ref
+        return true
     }
 
     func unregister() {
@@ -41,13 +45,13 @@ final class HotkeyManager {
         hotKeyRef = nil
     }
 
-    private func installHandlerIfNeeded() {
-        guard eventHandlerRef == nil else { return }
+    private func installHandlerIfNeeded() -> Bool {
+        if eventHandlerRef != nil { return true }
         var eventType = EventTypeSpec(
             eventClass: OSType(kEventClassKeyboard),
             eventKind: UInt32(kEventHotKeyPressed)
         )
-        InstallEventHandler(
+        let status = InstallEventHandler(
             GetApplicationEventTarget(),
             hotkeyEventHandler,
             1,
@@ -55,6 +59,10 @@ final class HotkeyManager {
             Unmanaged.passUnretained(self).toOpaque(),
             &eventHandlerRef
         )
+        if status != noErr {
+            NSLog("Claude Status: failed to install hotkey event handler (OSStatus %d)", status)
+        }
+        return eventHandlerRef != nil
     }
 }
 

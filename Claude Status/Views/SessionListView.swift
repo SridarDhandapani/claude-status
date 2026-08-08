@@ -19,6 +19,7 @@ struct SessionListView: View {
     @State private var isRefreshing = false
     @State private var selectedSessionID: String?
     @State private var keyMonitor: Any?
+    @State private var keyMonitorState = KeyMonitorState()
 
     private let menuFont = Font.system(size: 13)
 
@@ -34,7 +35,12 @@ struct SessionListView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        // The retained key-monitor closure captured an older copy of this
+        // struct; publish the current list through the shared box so keyboard
+        // actions never act on stale sessions (@State reads stay live).
+        keyMonitorState.sortedSessions = sortedSessions
+
+        return VStack(spacing: 0) {
             header
             Divider()
 
@@ -99,15 +105,15 @@ struct SessionListView: View {
             }
         }
 
-        guard !sortedSessions.isEmpty, modifiers.isEmpty else { return event }
+        let currentSessions = keyMonitorState.sortedSessions
+        guard !currentSessions.isEmpty, modifiers.isEmpty else { return event }
 
-        // Plain digits 1-9 (0 = tenth row) jump straight to that session
-        if let characters = event.charactersIgnoringModifiers,
-           characters.count == 1,
-           let digit = Int(characters),
+        // Digit keys 1-9 (0 = tenth row) jump straight to that session;
+        // matched by key code so the mapping is keyboard-layout independent
+        if let digit = Self.digitKeyCodes[Int(event.keyCode)],
            let index = Self.sessionIndex(forDigit: digit),
-           index < sortedSessions.count {
-            onSessionTap?(sortedSessions[index])
+           index < currentSessions.count {
+            onSessionTap?(currentSessions[index])
             return nil
         }
 
@@ -119,7 +125,7 @@ struct SessionListView: View {
             moveSelection(by: -1)
             return nil
         case kVK_Return, kVK_ANSI_KeypadEnter:
-            guard let selected = sortedSessions.first(where: { $0.id == selectedSessionID }) else {
+            guard let selected = currentSessions.first(where: { $0.id == selectedSessionID }) else {
                 return event
             }
             onSessionTap?(selected)
@@ -128,6 +134,15 @@ struct SessionListView: View {
             return event
         }
     }
+
+    private static let digitKeyCodes: [Int: Int] = [
+        kVK_ANSI_1: 1, kVK_ANSI_2: 2, kVK_ANSI_3: 3, kVK_ANSI_4: 4, kVK_ANSI_5: 5,
+        kVK_ANSI_6: 6, kVK_ANSI_7: 7, kVK_ANSI_8: 8, kVK_ANSI_9: 9, kVK_ANSI_0: 0,
+        kVK_ANSI_Keypad1: 1, kVK_ANSI_Keypad2: 2, kVK_ANSI_Keypad3: 3,
+        kVK_ANSI_Keypad4: 4, kVK_ANSI_Keypad5: 5, kVK_ANSI_Keypad6: 6,
+        kVK_ANSI_Keypad7: 7, kVK_ANSI_Keypad8: 8, kVK_ANSI_Keypad9: 9,
+        kVK_ANSI_Keypad0: 0,
+    ]
 
     private func triggerRefresh() {
         withAnimation(.linear(duration: 0.5)) {
@@ -140,7 +155,7 @@ struct SessionListView: View {
     }
 
     private func moveSelection(by delta: Int) {
-        let list = sortedSessions
+        let list = keyMonitorState.sortedSessions
         let current = list.firstIndex { $0.id == selectedSessionID }
         guard let next = Self.nextSelectionIndex(current: current, delta: delta, count: list.count) else {
             return
@@ -285,6 +300,14 @@ struct SessionListView: View {
         MenuButtonView(action: action, label: label)
             .font(menuFont)
     }
+}
+
+/// Reference box shared between the view and its retained key-monitor
+/// closure. The closure captures a value copy of `SessionListView` from when
+/// the monitor was installed; `@State` reads stay live across copies, but the
+/// `sessions` property would be frozen at install time without this.
+private final class KeyMonitorState {
+    var sortedSessions: [ClaudeSession] = []
 }
 
 /// A menu-style button with hover highlight, similar to Claude Code's menu items.
