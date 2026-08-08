@@ -21,11 +21,18 @@ struct SessionRowView: View {
     var showProfileBadge: Bool = false
     /// Highlighted via keyboard navigation.
     var isSelected: Bool = false
+    /// Digit key that jumps to this row (1-9, 0 for the tenth row).
+    var shortcutHint: Int? = nil
 
     @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 6) {
+            Text(shortcutHint.map(String.init) ?? "")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundStyle(.tertiary)
+                .frame(width: 8, alignment: .trailing)
+
             statusIndicator
                 .frame(width: 16, alignment: .leading)
 

@@ -55,7 +55,7 @@ struct SettingsView: View {
             } header: {
                 Text("Keyboard Shortcut")
             } footer: {
-                Text("Opens the session list from anywhere. Use \u{2191}\u{2193} to select a session and Return to focus it. No shortcut is set by default.")
+                Text("Opens the session list from anywhere. Use \u{2191}\u{2193} and Return to focus a session, or press 1\u{2013}9 (0 for the tenth) to jump straight to it. No shortcut is set by default.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

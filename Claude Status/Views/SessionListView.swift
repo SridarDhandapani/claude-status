@@ -80,7 +80,37 @@ struct SessionListView: View {
     }
 
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
-        guard !sortedSessions.isEmpty else { return event }
+        let modifiers = event.modifierFlags.intersection([.command, .option, .control])
+
+        // Command shortcuts mirror the header/menu buttons
+        if modifiers == .command, let characters = event.charactersIgnoringModifiers {
+            switch characters {
+            case "r":
+                triggerRefresh()
+                return nil
+            case ",":
+                onSettings?()
+                return nil
+            case "q":
+                onQuit?()
+                return nil
+            default:
+                break
+            }
+        }
+
+        guard !sortedSessions.isEmpty, modifiers.isEmpty else { return event }
+
+        // Plain digits 1-9 (0 = tenth row) jump straight to that session
+        if let characters = event.charactersIgnoringModifiers,
+           characters.count == 1,
+           let digit = Int(characters),
+           let index = Self.sessionIndex(forDigit: digit),
+           index < sortedSessions.count {
+            onSessionTap?(sortedSessions[index])
+            return nil
+        }
+
         switch Int(event.keyCode) {
         case kVK_DownArrow:
             moveSelection(by: 1)
@@ -96,6 +126,16 @@ struct SessionListView: View {
             return nil
         default:
             return event
+        }
+    }
+
+    private func triggerRefresh() {
+        withAnimation(.linear(duration: 0.5)) {
+            isRefreshing = true
+        }
+        onRefresh?()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            isRefreshing = false
         }
     }
 
@@ -118,6 +158,13 @@ struct SessionListView: View {
         return (current + delta % count + count) % count
     }
 
+    /// Maps a pressed digit key to a session row: 1-9 select rows 0-8, 0
+    /// selects the tenth row.
+    static func sessionIndex(forDigit digit: Int) -> Int? {
+        guard (0...9).contains(digit) else { return nil }
+        return digit == 0 ? 9 : digit - 1
+    }
+
     // MARK: - Subviews
 
     private var header: some View {
@@ -129,15 +176,7 @@ struct SessionListView: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
             Spacer()
-            Button(action: {
-                withAnimation(.linear(duration: 0.5)) {
-                    isRefreshing = true
-                }
-                onRefresh?()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    isRefreshing = false
-                }
-            }) {
+            Button(action: triggerRefresh) {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -145,7 +184,7 @@ struct SessionListView: View {
                     .animation(.linear(duration: 0.5), value: isRefreshing)
             }
             .buttonStyle(.plain)
-            .help("Refresh")
+            .help("Refresh (\u{2318}R)")
 
             Button(action: { onSettings?() }) {
                 Image(systemName: "gearshape")
@@ -153,7 +192,7 @@ struct SessionListView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Settings")
+            .help("Settings (\u{2318},)")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -176,7 +215,7 @@ struct SessionListView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 0) {
-                    ForEach(sortedSessions) { session in
+                    ForEach(Array(sortedSessions.enumerated()), id: \.element.id) { index, session in
                         Button {
                             onSessionTap?(session)
                         } label: {
@@ -184,7 +223,8 @@ struct SessionListView: View {
                                 session: session,
                                 iconStyle: iconStyle,
                                 showProfileBadge: showProfileBadges,
-                                isSelected: session.id == selectedSessionID
+                                isSelected: session.id == selectedSessionID,
+                                shortcutHint: index < 10 ? (index + 1) % 10 : nil
                             )
                         }
                         .buttonStyle(.plain)
@@ -226,7 +266,13 @@ struct SessionListView: View {
     private var menuSection: some View {
         VStack(spacing: 0) {
             menuButton(action: { onQuit?() }) {
-                Text("Quit")
+                HStack {
+                    Text("Quit")
+                    Spacer()
+                    Text("\u{2318}Q")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
         .padding(.bottom, 4)

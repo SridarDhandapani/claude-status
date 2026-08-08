@@ -351,6 +351,14 @@ struct KeyboardNavigationTests {
         #expect(SessionListView.nextSelectionIndex(current: 5, delta: 1, count: 3) == 0)
         #expect(SessionListView.nextSelectionIndex(current: 5, delta: -1, count: 3) == 2)
     }
+
+    @Test func digitKeysMapToRows() {
+        #expect(SessionListView.sessionIndex(forDigit: 1) == 0)
+        #expect(SessionListView.sessionIndex(forDigit: 9) == 8)
+        #expect(SessionListView.sessionIndex(forDigit: 0) == 9)
+        #expect(SessionListView.sessionIndex(forDigit: 10) == nil)
+        #expect(SessionListView.sessionIndex(forDigit: -1) == nil)
+    }
 }
 
 struct GlobalHotkeyTests {
