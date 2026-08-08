@@ -76,6 +76,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
+        // File > Close Window gives windows (e.g. Settings) the standard ⌘W
+        let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(NSMenuItem(title: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+
+        let fileMenuItem = NSMenuItem()
+        fileMenuItem.submenu = fileMenu
+        mainMenu.addItem(fileMenuItem)
+
         NSApplication.shared.mainMenu = mainMenu
     }
 
@@ -499,7 +507,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         let hostingController = NSHostingController(rootView: settingsView)
-        let window = NSWindow(contentViewController: hostingController)
+        let window = EscapeClosableWindow(contentViewController: hostingController)
         window.title = "Claude Status Settings"
         window.styleMask = [.titled, .closable]
         window.center()
@@ -545,6 +553,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Focus the session's host app
         focuser.focus(session: session)
+    }
+}
+
+// MARK: - Escape-Closable Window
+
+/// A window that closes on Esc. Esc reaches the window as `cancelOperation`
+/// via the responder chain unless a key monitor consumed it first (e.g. the
+/// hotkey recorder cancelling a recording).
+private final class EscapeClosableWindow: NSWindow {
+    override func cancelOperation(_ sender: Any?) {
+        close()
     }
 }
 
