@@ -36,9 +36,14 @@ struct SessionListView: View {
 
     var body: some View {
         // The retained key-monitor closure captured an older copy of this
-        // struct; publish the current list through the shared box so keyboard
-        // actions never act on stale sessions (@State reads stay live).
+        // struct; publish the current sessions and callbacks through the
+        // shared box so keyboard actions never act on stale inputs (@State
+        // reads stay live across copies).
         keyMonitorState.sortedSessions = sortedSessions
+        keyMonitorState.onSessionTap = onSessionTap
+        keyMonitorState.onRefresh = onRefresh
+        keyMonitorState.onSettings = onSettings
+        keyMonitorState.onQuit = onQuit
 
         return VStack(spacing: 0) {
             header
@@ -95,10 +100,10 @@ struct SessionListView: View {
                 triggerRefresh()
                 return nil
             case ",":
-                onSettings?()
+                keyMonitorState.onSettings?()
                 return nil
             case "q":
-                onQuit?()
+                keyMonitorState.onQuit?()
                 return nil
             default:
                 break
@@ -113,7 +118,7 @@ struct SessionListView: View {
         if let digit = Self.digitKeyCodes[Int(event.keyCode)],
            let index = Self.sessionIndex(forDigit: digit),
            index < currentSessions.count {
-            onSessionTap?(currentSessions[index])
+            keyMonitorState.onSessionTap?(currentSessions[index])
             return nil
         }
 
@@ -128,7 +133,7 @@ struct SessionListView: View {
             guard let selected = currentSessions.first(where: { $0.id == selectedSessionID }) else {
                 return event
             }
-            onSessionTap?(selected)
+            keyMonitorState.onSessionTap?(selected)
             return nil
         default:
             return event
@@ -148,7 +153,7 @@ struct SessionListView: View {
         withAnimation(.linear(duration: 0.5)) {
             isRefreshing = true
         }
-        onRefresh?()
+        keyMonitorState.onRefresh?()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             isRefreshing = false
         }
@@ -305,9 +310,14 @@ struct SessionListView: View {
 /// Reference box shared between the view and its retained key-monitor
 /// closure. The closure captures a value copy of `SessionListView` from when
 /// the monitor was installed; `@State` reads stay live across copies, but the
-/// `sessions` property would be frozen at install time without this.
+/// sessions and callback properties would be frozen at install time without
+/// this.
 private final class KeyMonitorState {
     var sortedSessions: [ClaudeSession] = []
+    var onSessionTap: ((ClaudeSession) -> Void)?
+    var onRefresh: (() -> Void)?
+    var onSettings: (() -> Void)?
+    var onQuit: (() -> Void)?
 }
 
 /// A menu-style button with hover highlight, similar to Claude Code's menu items.
