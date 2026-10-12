@@ -387,3 +387,87 @@ struct GlobalHotkeyTests {
         #expect(hotkey.displayString == "\u{2318}Space")
     }
 }
+
+struct SessionTitleReaderTests {
+
+    private func makeTranscript(_ lines: [String]) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).jsonl")
+        try (lines.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    private func append(_ line: String, to url: URL) throws {
+        let handle = try FileHandle(forWritingTo: url)
+        defer { try? handle.close() }
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data((line + "\n").utf8))
+    }
+
+    @Test func noTitleReturnsNil() throws {
+        let url = try makeTranscript([#"{"type":"user","message":"hi"}"#])
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(SessionTitleReader().title(forTranscriptAt: url) == nil)
+    }
+
+    @Test func missingFileReturnsNil() {
+        let url = URL(fileURLWithPath: "/nonexistent/\(UUID().uuidString).jsonl")
+        #expect(SessionTitleReader().title(forTranscriptAt: url) == nil)
+    }
+
+    @Test func latestAITitleWins() throws {
+        let url = try makeTranscript([
+            #"{"type":"ai-title","aiTitle":"First","sessionId":"s"}"#,
+            #"{"type":"user","message":"hi"}"#,
+            #"{"type":"ai-title","aiTitle":"Second","sessionId":"s"}"#,
+        ])
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(SessionTitleReader().title(forTranscriptAt: url) == "Second")
+    }
+
+    @Test func customTitleBeatsAITitle() throws {
+        let url = try makeTranscript([
+            #"{"type":"custom-title","customTitle":"my-name","sessionId":"s"}"#,
+            #"{"type":"ai-title","aiTitle":"Generated","sessionId":"s"}"#,
+        ])
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(SessionTitleReader().title(forTranscriptAt: url) == "my-name")
+    }
+
+    @Test func picksUpAppendedTitles() throws {
+        let url = try makeTranscript([#"{"type":"ai-title","aiTitle":"Before","sessionId":"s"}"#])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let reader = SessionTitleReader()
+        #expect(reader.title(forTranscriptAt: url) == "Before")
+
+        try append(#"{"type":"ai-title","aiTitle":"After","sessionId":"s"}"#, to: url)
+        #expect(reader.title(forTranscriptAt: url) == "After")
+    }
+
+    @Test func widensTailWhenTitleIsFarBack() throws {
+        // Push the title just past the first tail window with ordinary transcript lines.
+        let filler = #"{"type":"user","message":"\#(String(repeating: "x", count: 1000))"}"#
+        let fillerCount = Int(SessionTitleReader.tailWindows[0]) / filler.utf8.count + 10
+        let url = try makeTranscript(
+            [#"{"type":"ai-title","aiTitle":"Far back","sessionId":"s"}"#]
+                + Array(repeating: filler, count: fillerCount)
+        )
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(SessionTitleReader().title(forTranscriptAt: url) == "Far back")
+    }
+
+    @Test func ignoresIncompleteTrailingLine() throws {
+        let url = try makeTranscript([#"{"type":"ai-title","aiTitle":"Done","sessionId":"s"}"#])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(#"{"type":"ai-title","aiTi"#.utf8))
+        try handle.close()
+
+        let reader = SessionTitleReader()
+        #expect(reader.title(forTranscriptAt: url) == "Done")
+
+        try append(#"tle":"Completed","sessionId":"s"}"#, to: url)
+        #expect(reader.title(forTranscriptAt: url) == "Completed")
+    }
+}

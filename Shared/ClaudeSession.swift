@@ -129,9 +129,16 @@ struct ClaudeSession: Identifiable, Codable, Equatable {
     /// Display name of the Claude Code profile (config dir) this session belongs to.
     /// Nil for data written before profile support.
     var profileName: String? = nil
+    /// Title Claude Code records in the transcript: the `/rename` title if set,
+    /// otherwise the AI-generated summary title.
+    var sessionTitle: String? = nil
 
     /// Use sessionId as the SwiftUI identity (stable, unlike PIDs).
     var id: String { sessionId }
+
+    /// Subtitle shown under the project name: the `/name-session` name, else the
+    /// transcript title.
+    var displayTitle: String? { sessionName ?? sessionTitle }
 
     /// Relative time since last activity, human-readable.
     var timeSinceActivity: String {

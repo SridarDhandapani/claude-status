@@ -37,7 +37,7 @@ struct SessionRowView: View {
                 .frame(width: 16, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(session.sessionName ?? session.projectName)
+                Text(session.projectName)
                     .font(.system(size: 13, weight: .medium))
                     .lineLimit(1)
 
@@ -51,17 +51,12 @@ struct SessionRowView: View {
                             .foregroundStyle(.secondary)
                             .clipShape(Capsule())
                     }
-                    if session.sessionName != nil {
-                        Text(session.projectName)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                        Text("\u{2022}")
-                            .font(.system(size: 8))
-                            .foregroundStyle(.tertiary)
-                    }
-                    Text(session.source.label)
+                    // Fall back to the host app until Claude Code has titled the session.
+                    Text(session.displayTitle ?? session.source.label)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                     if !session.activity.isEmpty {
                         Text("\u{2022}")
                             .font(.system(size: 8))
@@ -93,7 +88,7 @@ struct SessionRowView: View {
         )
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
-        .help(session.workingDirectory)
+        .help("\(session.workingDirectory) \u{2014} \(session.source.label)")
     }
 
     @ViewBuilder

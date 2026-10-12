@@ -25,6 +25,9 @@ struct SessionDiscovery {
     /// Keyed by session ID (UUID string from the .cstatus filename).
     var deadSessions: Set<String> = []
 
+    /// Incrementally reads session titles from `.jsonl` transcripts.
+    private let titleReader = SessionTitleReader()
+
     // MARK: - Discovery
 
     /// Result of a discovery pass: sessions plus their .cstatus file locations.
@@ -52,6 +55,7 @@ struct SessionDiscovery {
                 cstatusFiles[record.sessionId] = record.fileURL
             }
         }
+        pruneTitleCache(keeping: cstatusFiles)
         return DiscoveryResult(sessions: sessions, cstatusFiles: cstatusFiles)
     }
 
@@ -76,12 +80,22 @@ struct SessionDiscovery {
             sessions.append(assembleSession(from: record, profileName: profileName(for: url, in: profiles)))
             cstatusFiles[record.sessionId] = record.fileURL
         }
+        pruneTitleCache(keeping: cstatusFiles)
         return DiscoveryResult(sessions: sessions, cstatusFiles: cstatusFiles)
     }
 
     /// Resolves the owning profile of a .cstatus file by path prefix.
     private func profileName(for url: URL, in profiles: [ClaudeProfile]) -> String? {
         profiles.first { url.path.hasPrefix($0.projectsDirectory.path + "/") }?.displayName
+    }
+
+    /// The `.jsonl` transcript Claude Code writes alongside a session's `.cstatus` file.
+    private func transcriptURL(forCStatusAt url: URL, sessionId: String) -> URL {
+        url.deletingLastPathComponent().appendingPathComponent("\(sessionId).jsonl")
+    }
+
+    private func pruneTitleCache(keeping cstatusFiles: [String: URL]) {
+        titleReader.retain(only: Set(cstatusFiles.map { transcriptURL(forCStatusAt: $0.value, sessionId: $0.key) }))
     }
 
     /// Clears the dead session list (e.g. after a Darwin notification
@@ -222,7 +236,10 @@ struct SessionDiscovery {
             source: source,
             activity: record.activity,
             sessionName: record.sessionName,
-            profileName: profileName
+            profileName: profileName,
+            sessionTitle: titleReader.title(
+                forTranscriptAt: transcriptURL(forCStatusAt: record.fileURL, sessionId: record.sessionId)
+            )
         )
     }
 
